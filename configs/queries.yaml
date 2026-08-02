@@ -1,0 +1,35 @@
+# queries.yaml
+queries:
+  heavy_agg:
+    description: "Heavy aggregation on city, network, app"
+    sql: |
+      SELECT 
+        city, network_type, app_name,
+        count() as total_events,
+        avg(latency_ms) as avg_latency,
+        avg(download_speed) as avg_speed,
+        sum(latency_ms) as total_latency
+      FROM network_events
+      WHERE event_time > now() - INTERVAL 90 DAY
+      GROUP BY city, network_type, app_name
+      HAVING total_events > 100
+      ORDER BY total_events DESC
+      LIMIT 50
+
+  light_agg:
+    description: "Simple city aggregation"
+    sql: |
+      SELECT city, count() 
+      FROM network_events 
+      GROUP BY city 
+      ORDER BY count() DESC 
+      LIMIT 10
+
+  full_scan:
+    description: "Full table scan with filters"
+    sql: |
+      SELECT * 
+      FROM network_events 
+      WHERE event_time > now() - INTERVAL 7 DAY 
+      AND latency_ms > 100
+      LIMIT 1000

@@ -1,0 +1,15 @@
+# config.yaml
+clickhouse:
+  host: "192.168.247.128"
+  port: 8123
+  database: "telecom_analytics"
+  username: "default"
+  password: ""
+
+benchmark:
+  default_iterations: 3
+  default_warmup: 1
+  timeout: 300
+
+logging:
+  level: "INFO"

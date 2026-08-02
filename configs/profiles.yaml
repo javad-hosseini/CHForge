@@ -1,0 +1,37 @@
+# profiles.yaml
+profiles:
+  quick:
+    description: "Quick test with 2 configs"
+    configs:
+      - threads: 4
+      - threads: 8
+
+  standard:
+    description: "Standard benchmark"
+    configs:
+      - threads: 2
+      - threads: 4
+      - threads: 8
+      - threads: 16
+
+  memory_test:
+    description: "Test memory configurations"
+    configs:
+      - threads: 4
+        memory: "2G"
+      - threads: 4
+        memory: "4G"
+      - threads: 4
+        memory: "8G"
+
+  full:
+    description: "Full benchmark (threads + memory)"
+    configs:
+      - threads: 2
+        memory: "2G"
+      - threads: 4
+        memory: "4G"
+      - threads: 8
+        memory: "8G"
+      - threads: 16
+        memory: "8G"
