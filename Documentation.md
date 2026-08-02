@@ -548,7 +548,213 @@ Phase 3 will implement:
 | Phase 4 | Visualization | ⏳ Pending |
 
 ---
+## Phase 3 - Configuration-Driven CLI & Auto-Optimizer
 
-**Phase 2 Status: COMPLETE ✅**
+### Overview
 
-Ready for Phase 3: Result Analysis & Reporting 🚀
+Phase 3 transformed CHForge from a hardcoded test script into a **configuration-driven, extensible benchmarking framework** with automatic resource optimization capabilities.
+
+---
+
+### What We Built
+
+#### 1. **Configuration System** (`chforge/config/`)
+
+**Purpose:** Centralize all settings, queries, and profiles into YAML files, eliminating hardcoded values.
+
+**Components:**
+
+| File | Purpose |
+|------|---------|
+| `configs/config.yaml` | ClickHouse connection settings + benchmark defaults |
+| `configs/queries.yaml` | SQL query catalog with descriptions and table substitution |
+| `configs/profiles.yaml` | Resource configuration profiles (quick, standard, full, memory_test) |
+
+**Features:**
+- **YAML-based configuration** for easy editing
+- **Table substitution** via `{table}` placeholder in queries
+- **Profile system** for reusable resource configurations
+- **Pydantic models** for type-safe validation
+- **ConfigLoader** class for dynamic loading
+
+**Usage:**
+```python
+from chforge.config import ConfigLoader
+
+loader = ConfigLoader()
+query = loader.get_query("heavy_agg")  # Returns formatted SQL
+configs = loader.get_profile("standard")  # Returns list of config dicts
+```
+
+---
+
+#### 2. **Resource Optimizer** (`chforge/benchmark/optimizer.py`)
+
+**Purpose:** Automatically find the best resource configuration for a given query.
+
+**Features:**
+- **Search space generation** - Automatically creates thread/memory combinations
+- **Objective-driven optimization** - Minimize `time` or `memory`
+- **Comparative analysis** - Compare manual vs auto configurations
+- **Human-readable recommendations** - Provides insights and tips
+
+**Optimization Result:**
+```python
+Best config: ResourceConfig(threads=4, memory=4G)
+Best time: 0.0380s
+Improvement: 28.9% faster than worst config
+Success rate: 10/10
+Tip: Your query may be I/O or memory bound.
+```
+
+---
+
+#### 3. **Unified CLI** (`run.py`)
+
+**Purpose:** Single entry point for all CHForge operations.
+
+**Features:**
+- **Query selection** via `--query heavy_agg`
+- **Profile selection** via `--profile standard`
+- **Optimization mode** via `--optimize`
+- **Iteration control** via `--iterations 5 --warmup 2`
+- **Connection override** via `--host` and `--database`
+- **Discovery commands** via `--list-queries` and `--list-profiles`
+
+**Usage Examples:**
+```bash
+# List available queries
+python run.py --list-queries
+
+# Run benchmark
+python run.py --query light_agg --profile quick
+
+# Run optimizer (time objective)
+python run.py --optimize --query heavy_agg --objective time
+
+# Run optimizer (memory objective)
+python run.py --optimize --query heavy_agg --objective memory
+
+# Override connection
+python run.py --query heavy_agg --host 192.168.1.100 --database my_db
+```
+
+---
+
+### Phase 3 Summary
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| Config Loader | ✅ Complete | YAML-based configuration with Pydantic models |
+| Query Catalog | ✅ Complete | Reusable SQL queries with table substitution |
+| Profile System | ✅ Complete | Reusable resource configurations |
+| Resource Optimizer | ✅ Complete | Auto-discovers best configuration |
+| CLI (run.py) | ✅ Complete | Unified entry point with argparse |
+| Discovery Commands | ✅ Complete | List queries/profiles from CLI |
+| Auto-Optimizer Testing | ✅ Complete | 28.9% improvement verified |
+
+---
+
+### Files Added in Phase 3
+
+```
+chforge/config/
+├── __init__.py
+├── loader.py                ~150 lines
+└── models.py                ~70 lines
+
+chforge/benchmark/
+├── __init__.py
+└── optimizer.py            ~200 lines
+
+configs/
+├── config.yaml              ~20 lines
+├── queries.yaml             ~40 lines
+└── profiles.yaml            ~40 lines
+
+run.py                       ~170 lines
+```
+
+---
+
+### Benchmark Results (1M+ Rows)
+
+**Query:** Heavy aggregation on `city`, `network_type`, `app_name` (1M+ rows)
+
+| Config | Time | Result |
+|--------|------|--------|
+| Worst (threads=2) | 0.0534s | Baseline |
+| Best (threads=4, memory=4G) | **0.0380s** | **28.9% faster** |
+| threads=16 | 0.0421s | Moderate improvement |
+
+**Key Insight:** The query is **I/O or memory bound** - increasing threads beyond 4 offers diminishing returns.
+
+---
+
+### How to Use Phase 3
+
+```bash
+# 1. Edit configuration files (if needed)
+configs/config.yaml      # Connection settings
+configs/queries.yaml     # Add your own queries
+configs/profiles.yaml    # Add your own profiles
+
+# 2. List available queries
+python run.py --list-queries
+
+# 3. Run benchmark
+python run.py --query heavy_agg --profile standard
+
+# 4. Run optimizer
+python run.py --optimize --query heavy_agg --objective time
+
+# 5. Use custom settings
+python run.py --query heavy_agg --profile full --iterations 5 --warmup 2
+```
+
+---
+
+### Key Learning: Auto-Optimizer in Action
+
+With 1M+ rows and 10 different configurations tested:
+
+1. The **optimizer automatically found** that `threads=4, memory=4G` was the sweet spot
+2. **28.9% improvement** over the worst configuration
+3. **Identified I/O/memory bound** limitation (thread scaling plateau)
+4. **All 10 configs** succeeded (100% success rate)
+
+---
+
+### Next Phase: Phase 4 - Result Analysis & Reporting
+
+Phase 4 will implement:
+
+1. **Result Analyzer** - Compare and analyze benchmark results
+2. **Metrics Visualization** - Generate charts and graphs (matplotlib/seaborn)
+3. **Report Generator** - Export results to CSV, JSON, HTML
+4. **Best Config Recommendation** - Automated recommendations with justifications
+
+---
+
+### Current Status
+
+| Phase | Component | Status |
+|-------|-----------|--------|
+| Phase 1 | System Info | ✅ Complete |
+| Phase 1 | Resource Manager | ✅ Complete |
+| Phase 2 | ClickHouse Client | ✅ Complete |
+| Phase 2 | Query Executor | ✅ Complete |
+| Phase 2 | Benchmark Runner | ✅ Complete |
+| Phase 3 | Config Loader | ✅ Complete |
+| Phase 3 | Query/Profile Catalog | ✅ Complete |
+| Phase 3 | Resource Optimizer | ✅ Complete |
+| Phase 3 | CLI (run.py) | ✅ Complete |
+| Phase 4 | Result Analyzer | ⏳ Pending |
+| Phase 4 | Report Generator | ⏳ Pending |
+| Phase 4 | Visualization | ⏳ Pending |
+
+---
+
+**Phase 3 Status: COMPLETE ✅**
+
+Ready for Phase 4: Result Analysis & Reporting 🚀

@@ -1,10 +1,15 @@
 #!/usr/bin/env python
 """
 CHForge - ClickHouse Performance Benchmark Framework
+
 Usage:
     python run.py --query heavy_agg --profile standard
     python run.py --query light_agg --profile quick --iterations 5
     python run.py --optimize --query heavy_agg --objective memory
+    python run.py --list-queries
+    python run.py --list-profiles
+    python run.py --system-info
+    python run.py --clickhouse-info
 """
 
 import argparse
@@ -12,20 +17,23 @@ import sys
 from pathlib import Path
 
 from chforge.client import ClickHouseClient
-from chforge.resources import ResourceConfig, ResourceManager
-from chforge.benchmark import BenchmarkRunner, ResourceOptimizer
+from chforge.resources import ResourceConfig
+from chforge.benchmark import BenchmarkRunner
+from chforge.benchmark.optimizer import ResourceOptimizer
 from chforge.config.loader import ConfigLoader
+from chforge.system import print_system_info, get_system_info
+from chforge.system.clickhouse_info import ClickHouseInfoCollector
+from chforge.utils.logger import logger
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CHForge - ClickHouse Performance Benchmark"
+        description="CHForge - ClickHouse Performance Benchmark Framework"
     )
 
     # Query and profile selection
     parser.add_argument(
         "--query", "-q",
-        required=True,
         help="Query name from queries.yaml (e.g., heavy_agg, light_agg)"
     )
     parser.add_argument(
@@ -68,10 +76,87 @@ def main():
         help="Override ClickHouse database"
     )
 
+    # List commands
+    parser.add_argument(
+        "--list-queries",
+        action="store_true",
+        help="List all available queries"
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="List all available profiles"
+    )
+
+    # System info (local)
+    parser.add_argument(
+        "--system-info",
+        action="store_true",
+        help="Show local system information and exit"
+    )
+
+    # ClickHouse server info (remote)
+    parser.add_argument(
+        "--clickhouse-info",
+        action="store_true",
+        help="Show ClickHouse server system information and exit"
+    )
+
     args = parser.parse_args()
+
+    # Handle local system info
+    if args.system_info:
+        print_system_info()
+        return
+
+    # Handle ClickHouse server info
+    if args.clickhouse_info:
+        loader = ConfigLoader()
+        ch_config = loader.get_clickhouse_config()
+
+        try:
+            client = ClickHouseClient(
+                host=ch_config["host"],
+                port=ch_config["port"],
+                database=ch_config["database"],
+                username=ch_config["username"],
+                password=ch_config["password"],
+            )
+            collector = ClickHouseInfoCollector(client)
+            collector.print_summary()
+            client.close()
+        except Exception as e:
+            print(f"❌ Failed to get ClickHouse server info: {e}")
+            sys.exit(1)
+        return
 
     # Load configuration
     loader = ConfigLoader()
+
+    # Handle list commands
+    if args.list_queries:
+        print("\n📋 Available Queries:")
+        print("-" * 40)
+        for q in loader.list_queries():
+            desc = loader.get_query_description(q)
+            print(f"  {q}: {desc}")
+        print("-" * 40)
+        return
+
+    if args.list_profiles:
+        print("\n📋 Available Profiles:")
+        print("-" * 40)
+        for p in loader.list_profiles():
+            desc = loader.get_profile_description(p)
+            print(f"  {p}: {desc}")
+        print("-" * 40)
+        return
+
+    # Validate required arguments
+    if not args.query:
+        print("❌ Error: --query is required")
+        print("Use --list-queries to see available queries")
+        sys.exit(1)
 
     # Get connection settings
     ch_config = loader.get_clickhouse_config()
@@ -81,10 +166,20 @@ def main():
         ch_config["database"] = args.database
 
     # Get query
-    sql = loader.get_query(args.query)
+    try:
+        sql = loader.get_query(args.query)
+        query_description = loader.get_query_description(args.query)
+    except ValueError as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)
 
     # Get profile
-    profile_configs = loader.get_profile(args.profile)
+    try:
+        profile_configs = loader.get_profile(args.profile)
+        profile_description = loader.get_profile_description(args.profile)
+    except ValueError as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)
 
     # Convert to ResourceConfig objects
     configs = [ResourceConfig(**cfg) for cfg in profile_configs]
@@ -95,22 +190,32 @@ def main():
     warmup = args.warmup or bench_config.get("default_warmup", 1)
     objective = args.objective or bench_config.get("default_objective", "time")
 
+    # Print header
+    print("\n" + "=" * 60)
+    print(f"📊 CHForge Benchmark")
+    print("=" * 60)
+    print(f"📌 Query: {args.query} - {query_description}")
+    print(f"📋 Profile: {args.profile} - {profile_description}")
+    print(f"⚙️  Configs: {len(configs)}")
+    print(f"🔄 Iterations: {iterations}, Warmup: {warmup}")
+    if args.optimize:
+        print(f"🎯 Objective: {objective}")
+    print("=" * 60)
+
     # Connect to ClickHouse
-    client = ClickHouseClient(
-        host=ch_config["host"],
-        port=ch_config["port"],
-        database=ch_config["database"],
-        username=ch_config["username"],
-        password=ch_config["password"],
-    )
+    try:
+        client = ClickHouseClient(
+            host=ch_config["host"],
+            port=ch_config["port"],
+            database=ch_config["database"],
+            username=ch_config["username"],
+            password=ch_config["password"],
+        )
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        sys.exit(1)
 
     runner = BenchmarkRunner(client)
-
-    print("\n" + "=" * 60)
-    print(f"📊 Query: {args.query}")
-    print(f"📋 Profile: {args.profile} ({len(configs)} configs)")
-    print(f"🔄 Iterations: {iterations}, Warmup: {warmup}")
-    print("=" * 60)
 
     try:
         if args.optimize:
@@ -129,7 +234,7 @@ def main():
             print(f"Best time: {result.best_time:.4f}s")
             print(f"Configs tested: {result.configs_tested}")
             print(f"Success rate: {result.success_rate:.0%}")
-            print("\nRecommendation:")
+            print("\n💡 Recommendation:")
             print(result.recommendation)
         else:
             # Run benchmark
